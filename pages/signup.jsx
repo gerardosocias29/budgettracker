@@ -2,16 +2,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signUp, fetchProfile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [inviteToken, setInviteToken] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -36,35 +35,27 @@ export default function SignupPage() {
       return;
     }
 
-    // 1. Create account
-    const { data, error: signUpError } = await signUp(email, password);
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch('/api/signup-with-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, inviteToken }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Signup failed.');
+        setLoading(false);
+        return;
+      }
+
+      setSuccess('Account created! You can now log in.');
+      setTimeout(() => router.push('/login'), 2000);
+    } catch (err) {
+      setError('Something went wrong. Please try again.');
     }
-
-    // 2. Save invite token so it can be claimed after login
-    localStorage.setItem('pending_invite_token', inviteToken);
-
-    // 3. If email confirmation is required, notify user
-    if (!data.session) {
-      setSuccess('Check your email to confirm your account, then come back and log in.');
-      setLoading(false);
-      return;
-    }
-
-    // 3. Claim the invite (session is active)
-    const { error: claimError } = await supabase.rpc('claim_invite', { inv_token: inviteToken });
-    if (claimError) {
-      setError('Account created but invite claim failed: ' + claimError.message);
-      setLoading(false);
-      return;
-    }
-
-    // 4. Refresh profile and redirect
-    await fetchProfile(data.user.id);
-    router.push('/');
+    setLoading(false);
   }
 
   return (
@@ -112,14 +103,24 @@ export default function SignupPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <Input
-                type="password"
-                placeholder="Min 6 characters"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                minLength={6}
-                required
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Min 6 characters"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  minLength={6}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <Button className="w-full" disabled={loading || !!success}>

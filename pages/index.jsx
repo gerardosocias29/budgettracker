@@ -4,7 +4,7 @@ import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../context/AuthContext';
 
-const FinanceApp = dynamic(() => import('../components/FinanceApp'), { ssr: false });
+const FinanceApp = dynamic(() => import('../components/FinanceAppV3'), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
@@ -32,9 +32,7 @@ export default function Home() {
         <title>BudgetTracker</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <main>
-        <FinanceApp />
-      </main>
+      <FinanceApp />
     </>
   );
 }

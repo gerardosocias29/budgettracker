@@ -8,6 +8,7 @@ import { ResponsiveContainer, RadialBarChart, RadialBar, Tooltip } from 'rechart
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import InviteManager from './InviteManager';
+import ProofModal from './ProofModal';
 
 export default function FinanceApp() {
   const { user, profile, isSuperAdmin, signOut } = useAuth();
@@ -111,7 +112,7 @@ export default function FinanceApp() {
   }
 
   return (
-    <div className="pb-24 max-w-md mx-auto bg-gradient-to-b from-gray-50 to-white min-h-screen">
+    <div className="pb-8 max-w-md mx-auto bg-gradient-to-b from-gray-50 to-white min-h-screen">
       {/* Header */}
       <div className="p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-b-3xl shadow-lg relative overflow-hidden">
         <div className="flex justify-between items-start">
@@ -261,20 +262,13 @@ export default function FinanceApp() {
       {/* Floating Button — superadmin only */}
       {isSuperAdmin && (
         <Button
-          className="fixed bottom-20 right-4 rounded-full h-16 w-16 shadow-2xl bg-indigo-500 text-white hover:bg-indigo-600 transition-transform active:scale-95"
+          className="fixed bottom-6 right-4 rounded-full h-16 w-16 shadow-2xl bg-indigo-500 text-white hover:bg-indigo-600 transition-transform active:scale-95"
           onClick={() => setOpen(true)}
         >
           <Plus />
         </Button>
       )}
 
-      {/* Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-2 flex justify-around text-xs shadow-md">
-        <span>Home</span>
-        <span>Income</span>
-        <span>Expenses</span>
-        <span>Profile</span>
-      </div>
     </div>
   );
 }
@@ -295,6 +289,7 @@ function MiniCard({ label, value, icon, color }) {
 
 function List({ entries, isSuperAdmin, onDelete }) {
   const [confirmId, setConfirmId] = useState(null);
+  const [proofPreview, setProofPreview] = useState(null);
 
   if (entries.length === 0) {
     return <p className="text-center text-gray-400 text-sm py-8">No transactions yet</p>;
@@ -314,14 +309,12 @@ function List({ entries, isSuperAdmin, onDelete }) {
                 <p className="text-xs text-indigo-500 mt-0.5">Assigned: {e.assignedTo}</p>
               )}
               {e.proofUrl && (
-                <a
-                  href={e.proofUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => setProofPreview(e.proofUrl)}
                   className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mt-0.5"
                 >
                   <Image size={12} /> View proof
-                </a>
+                </button>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -364,6 +357,7 @@ function List({ entries, isSuperAdmin, onDelete }) {
           </div>
         </div>
       )}
+      <ProofModal url={proofPreview} onClose={() => setProofPreview(null)} />
     </div>
   );
 }

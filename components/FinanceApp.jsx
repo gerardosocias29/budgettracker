@@ -294,9 +294,13 @@ function MiniCard({ label, value, icon, color }) {
 }
 
 function List({ entries, isSuperAdmin, onDelete }) {
+  const [confirmId, setConfirmId] = useState(null);
+
   if (entries.length === 0) {
     return <p className="text-center text-gray-400 text-sm py-8">No transactions yet</p>;
   }
+
+  const pendingEntry = confirmId ? entries.find(e => e.id === confirmId) : null;
 
   return (
     <div className="flex flex-col gap-3 px-3">
@@ -325,7 +329,7 @@ function List({ entries, isSuperAdmin, onDelete }) {
                 {e.type === 'expense' ? '-' : '+'}₱{e.amount.toLocaleString()}
               </p>
               {isSuperAdmin && (
-                <button onClick={() => onDelete(e.id)} className="text-gray-300 hover:text-red-400 text-xs ml-1">
+                <button onClick={() => setConfirmId(e.id)} className="text-gray-300 hover:text-red-400 text-xs ml-1">
                   ×
                 </button>
               )}
@@ -333,6 +337,33 @@ function List({ entries, isSuperAdmin, onDelete }) {
           </CardContent>
         </Card>
       ))}
+
+      {/* Delete confirmation modal */}
+      {pendingEntry && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-5 mx-4 max-w-sm w-full">
+            <h3 className="font-bold text-base mb-2 text-center">Delete Transaction?</h3>
+            <p className="text-sm text-gray-500 text-center mb-1">
+              {pendingEntry.desc}
+            </p>
+            <p className={`text-sm font-bold text-center mb-4 ${pendingEntry.type === 'expense' ? 'text-red-500' : 'text-green-600'}`}>
+              {pendingEntry.type === 'expense' ? '-' : '+'}₱{pendingEntry.amount.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400 text-center mb-4">This action cannot be undone.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmId(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                onClick={() => { onDelete(pendingEntry.id); setConfirmId(null); }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

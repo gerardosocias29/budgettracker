@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   // For simplicity, use service_role to list invites (endpoint is only called from admin UI)
   const { data, error } = await supabaseAdmin
     .from('invites')
-    .select('id, email, role, used, expires_at, created_at')
+    .select('id, email, token, role, used, expires_at, created_at')
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });

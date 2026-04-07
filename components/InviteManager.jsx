@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Copy, Check } from 'lucide-react';
 
 export default function InviteManager({ onBack }) {
   const [email, setEmail] = useState('');
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
     fetchInvites();
@@ -48,6 +49,23 @@ export default function InviteManager({ onBack }) {
       setResult({ type: 'error', message: data.error });
     }
     setLoading(false);
+  }
+
+  function getInviteLink(token) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    return `${appUrl}/signup?invite=${token}`;
+  }
+
+  async function copyLink(inv) {
+    const link = getInviteLink(inv.token);
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedId(inv.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Fallback for older browsers
+      prompt('Copy this link:', link);
+    }
   }
 
   return (
@@ -96,7 +114,7 @@ export default function InviteManager({ onBack }) {
         {invites.map(inv => (
           <Card key={inv.id} className="rounded-2xl shadow">
             <CardContent className="p-3 text-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="font-medium">{inv.email}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   inv.used ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
@@ -107,6 +125,18 @@ export default function InviteManager({ onBack }) {
               <p className="text-xs text-gray-400 mt-1">
                 Role: {inv.role} — Expires: {new Date(inv.expires_at).toLocaleDateString()}
               </p>
+              {!inv.used && (
+                <button
+                  onClick={() => copyLink(inv)}
+                  className="mt-2 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  {copiedId === inv.id ? (
+                    <><Check size={13} /> Copied!</>
+                  ) : (
+                    <><Copy size={13} /> Copy invite link</>
+                  )}
+                </button>
+              )}
             </CardContent>
           </Card>
         ))}

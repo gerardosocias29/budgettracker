@@ -12,10 +12,17 @@ BEGIN
     RAISE EXCEPTION 'invalid invite';
   END IF;
 
-  -- insert or update profile role
-  INSERT INTO profiles(id, role, created_at)
-    VALUES (auth.uid(), inv.role, now())
-    ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
+  -- insert or update profile role, storing email from auth.users in metadata
+  INSERT INTO profiles(id, role, metadata, created_at)
+    VALUES (
+      auth.uid(),
+      inv.role,
+      jsonb_build_object('email', (SELECT email FROM auth.users WHERE id = auth.uid())),
+      now()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      role = EXCLUDED.role,
+      metadata = COALESCE(profiles.metadata, '{}'::jsonb) || EXCLUDED.metadata;
 
   UPDATE invites SET used = true WHERE id = inv.id;
 END;

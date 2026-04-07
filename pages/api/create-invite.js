@@ -11,6 +11,18 @@ export default async function handler(req, res) {
   if (!email) return res.status(400).json({ error: 'email required' });
 
   try {
+    // Check for existing pending (unused, non-expired) invite for this email
+    const { data: existing } = await supabase
+      .from('invites')
+      .select('id')
+      .eq('email', email)
+      .eq('used', false)
+      .gt('expires_at', new Date().toISOString())
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ error: 'This email already has a pending invite.' });
+    }
     const token = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : require('crypto').randomUUID();
     const expires_at = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString();
 

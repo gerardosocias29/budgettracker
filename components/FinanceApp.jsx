@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, ArrowDownCircle, ArrowUpCircle, LogOut, UserPlus } from 'lucide-react';
+import { Plus, ArrowDownCircle, ArrowUpCircle, LogOut, UserPlus, Paperclip, Image } from 'lucide-react';
 import { ResponsiveContainer, RadialBarChart, RadialBar, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -14,13 +14,20 @@ export default function FinanceApp() {
   const [entries, setEntries] = useState([]);
   const [open, setOpen] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
-  const [form, setForm] = useState({ type: 'expense', desc: '', amount: '' });
+  const [form, setForm] = useState({ type: 'expense', desc: '', amount: '', assignedTo: '' });
+  const [proofFile, setProofFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [members, setMembers] = useState([]);
+
+  const fetchMembers = useCallback(async () => {
+    const { data } = await supabase.from('profiles').select('id, role, metadata');
+    if (data) setMembers(data);
+  }, []);
 
   const fetchTransactions = useCallback(async () => {
     const { data, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('*, assigned_profile:profiles!transactions_assigned_to_fkey(id, metadata)')
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -30,6 +37,8 @@ export default function FinanceApp() {
         desc: t.description,
         amount: Math.abs(t.amount),
         user: t.created_by === user?.id ? 'You' : 'Admin',
+        assignedTo: t.assigned_profile?.metadata?.email || t.assigned_profile?.metadata?.name || null,
+        proofUrl: t.proof_url,
         raw: t,
       })));
     }
@@ -37,7 +46,8 @@ export default function FinanceApp() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [fetchTransactions]);
+    fetchMembers();
+  }, [fetchTransactions, fetchMembers]);
 
   async function addEntry() {
     if (!form.desc || !form.amount) return;
@@ -47,14 +57,35 @@ export default function FinanceApp() {
       ? -Math.abs(Number(form.amount))
       : Math.abs(Number(form.amount));
 
-    const { error } = await supabase.from('transactions').insert({
+    let proofUrl = null;
+
+    // Upload proof file for expenses
+    if (form.type === 'expense' && proofFile) {
+      const ext = proofFile.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('proof')
+        .upload(filePath, proofFile);
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('proof').getPublicUrl(filePath);
+        proofUrl = urlData?.publicUrl || null;
+      }
+    }
+
+    const row = {
       description: form.desc,
       amount,
       created_by: user.id,
-    });
+    };
+    if (form.assignedTo) row.assigned_to = form.assignedTo;
+    if (proofUrl) row.proof_url = proofUrl;
+
+    const { error } = await supabase.from('transactions').insert(row);
 
     if (!error) {
-      setForm({ type: 'expense', desc: '', amount: '' });
+      setForm({ type: 'expense', desc: '', amount: '', assignedTo: '' });
+      setProofFile(null);
       setOpen(false);
       await fetchTransactions();
     }
@@ -153,7 +184,7 @@ export default function FinanceApp() {
       {/* Add Modal — superadmin only */}
       {open && isSuperAdmin && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full p-5 rounded-t-3xl shadow-xl">
+          <div className="bg-white w-full p-5 rounded-t-3xl shadow-xl max-h-[85vh] overflow-y-auto">
             <h2 className="font-bold text-lg mb-3 text-center">New Entry</h2>
             <select
               className="w-full mb-3 border p-3 rounded-lg bg-gray-50"
@@ -172,14 +203,57 @@ export default function FinanceApp() {
             <Input
               placeholder="Amount"
               type="number"
-              className="mb-4 p-3 rounded-lg bg-gray-50"
+              className="mb-3 p-3 rounded-lg bg-gray-50"
               value={form.amount}
               onChange={e => setForm({ ...form, amount: e.target.value })}
             />
+
+            {/* Assign to user */}
+            <label className="text-xs text-gray-500 mb-1 block">Assign to</label>
+            <select
+              className="w-full mb-3 border p-3 rounded-lg bg-gray-50"
+              value={form.assignedTo}
+              onChange={e => setForm({ ...form, assignedTo: e.target.value })}
+            >
+              <option value="">— None —</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.metadata?.email || m.metadata?.name || m.id.slice(0, 8)} ({m.role})
+                </option>
+              ))}
+            </select>
+
+            {/* Proof upload — expenses only */}
+            {form.type === 'expense' && (
+              <div className="mb-4">
+                <label className="text-xs text-gray-500 mb-1 block">Upload Proof</label>
+                <label className="flex items-center gap-2 border p-3 rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                  <Paperclip size={16} className="text-gray-400" />
+                  <span className="text-sm text-gray-600 truncate">
+                    {proofFile ? proofFile.name : 'Choose file (image/pdf)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={e => setProofFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+                {proofFile && (
+                  <button
+                    className="text-xs text-red-400 mt-1 hover:underline"
+                    onClick={() => setProofFile(null)}
+                  >
+                    Remove file
+                  </button>
+                )}
+              </div>
+            )}
+
             <Button className="w-full mb-2" onClick={addEntry} disabled={saving}>
               {saving ? 'Saving...' : 'Save'}
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" className="w-full" onClick={() => { setOpen(false); setProofFile(null); }}>Cancel</Button>
           </div>
         </div>
       )}
@@ -229,11 +303,24 @@ function List({ entries, isSuperAdmin, onDelete }) {
       {entries.map(e => (
         <Card key={e.id} className="rounded-2xl shadow hover:scale-105 transition-transform">
           <CardContent className="p-4 flex justify-between items-center">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-700">{e.desc}</p>
               <p className="text-xs text-gray-400">{e.user}</p>
+              {e.assignedTo && (
+                <p className="text-xs text-indigo-500 mt-0.5">Assigned: {e.assignedTo}</p>
+              )}
+              {e.proofUrl && (
+                <a
+                  href={e.proofUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-500 hover:underline mt-0.5"
+                >
+                  <Image size={12} /> View proof
+                </a>
+              )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <p className={`text-sm font-bold ${e.type === 'expense' ? 'text-red-500' : 'text-green-600'}`}>
                 {e.type === 'expense' ? '-' : '+'}₱{e.amount.toLocaleString()}
               </p>
